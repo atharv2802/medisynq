@@ -11,12 +11,21 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleCallback = async () => {
-      const { error } = await supabase.auth.getSession();
-      if (error) {
-        console.error('Error:', error.message);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.error('No session found');
         router.push('/login');
       } else {
-        router.push('/dashboard');
+        // Check user role and redirect accordingly
+        const role = session.user.user_metadata.role;
+        if (role === 'patient') {
+          router.push('/dashboard/patient');
+        } else if (role === 'doctor') {
+          router.push('/dashboard/doctor');
+        } else {
+          // Default to patient dashboard if role is not set
+          router.push('/dashboard/patient');
+        }
       }
     };
 

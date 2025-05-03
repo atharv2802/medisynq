@@ -21,6 +21,7 @@ export default function Signup() {
   const [historyFile, setHistoryFile] = useState<File | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -39,6 +40,10 @@ export default function Signup() {
     return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/.test(password);
   }
 
+  function validatePhone(phone: string) {
+    return /^\d{10}$/.test(phone);
+  }
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
@@ -55,6 +60,14 @@ export default function Signup() {
     }
     if (!validatePassword(password)) {
       setValidationError('Password must be at least 8 characters, include uppercase, lowercase, number, and special character.');
+      return;
+    }
+    if (!validatePhone(phone)) {
+      setValidationError('Phone number must be exactly 10 digits.');
+      return;
+    }
+    if (!validatePhone(emergencyPhone)) {
+      setValidationError('Emergency contact phone number must be exactly 10 digits.');
       return;
     }
 
@@ -91,6 +104,7 @@ export default function Signup() {
           allergies,
           past_medical_history: pastHistory,
           past_history_file: file_url,
+          role: 'patient'
         },
         emailRedirectTo: `${getSiteUrl()}/auth/callback`
       }
@@ -146,7 +160,23 @@ export default function Signup() {
                 </div>
                 <div>
                   <label className="block mb-1 font-semibold text-gray-600 font-mono">Password<span className="text-red-500">*</span></label>
-                  <input type="password" required className="w-full px-3 py-2 border border-gray-300 rounded font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      required 
+                      className="w-full px-3 py-2 border border-gray-300 rounded font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200" 
+                      placeholder="Password" 
+                      value={password} 
+                      onChange={e => setPassword(e.target.value)} 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block mb-1 font-semibold text-gray-600 font-mono">Date of Birth<span className="text-red-500">*</span></label>
@@ -154,7 +184,15 @@ export default function Signup() {
                 </div>
                 <div>
                   <label className="block mb-1 font-semibold text-gray-600 font-mono">Phone<span className="text-red-500">*</span></label>
-                  <input type="text" required className="w-full px-3 py-2 border border-gray-300 rounded font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
+                  <input 
+                    type="text" 
+                    required 
+                    className="w-full px-3 py-2 border border-gray-300 rounded font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200" 
+                    placeholder="Phone (10 digits)" 
+                    value={phone} 
+                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                    maxLength={10}
+                  />
                 </div>
                 <div>
                   <label className="block mb-1 font-semibold text-gray-600 font-mono">Address<span className="text-red-500">*</span></label>
@@ -175,8 +213,17 @@ export default function Signup() {
                 </div>
                 <div>
                   <label className="block mb-1 font-semibold text-gray-600 font-mono">Emergency Contact Phone<span className="text-red-500">*</span></label>
-                  <input type="text" required className="w-full px-3 py-2 border border-gray-300 rounded font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Emergency Contact Phone" value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)} />
+                  <input 
+                    type="text" 
+                    required 
+                    className="w-full px-3 py-2 border border-gray-300 rounded font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200" 
+                    placeholder="Phone (10 digits)" 
+                    value={emergencyPhone} 
+                    onChange={e => setEmergencyPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                    maxLength={10}
+                  />
                 </div>
+                
                 <div>
                   <label className="block mb-1 font-semibold text-gray-600 font-mono">Insurance Provider</label>
                   <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Insurance Provider" value={insuranceProvider} onChange={e => setInsuranceProvider(e.target.value)} />
