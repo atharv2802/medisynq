@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Head from 'next/head';
 import * as React from 'react';
-import { createBrowserClient } from '@supabase/ssr';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/router';
 
 function validateEmail(email: string) {
@@ -16,10 +16,10 @@ export default function Login() {
   const [error, setError] = React.useState<string | null>(null);
   const [validationError, setValidationError] = React.useState<string | null>(null);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = createClientComponentClient({
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  });
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
