@@ -44,7 +44,7 @@
 
 // Example: pages/dashboard/patient.tsx
 
-export default function PatientDashboard() {
-    return <div>Coming Soon: Patient Dashboard</div>;
-  }
+export default function Appointments() {
+  return <div>This page has been moved to the patient dashboard.</div>;
+}
   

@@ -73,50 +73,96 @@ export default function Signup() {
 
     setLoading(true);
 
-    let file_url = null;
-    if (historyFile) {
-      const filePath = `patient-docs/${Date.now()}_${historyFile.name}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('ehr-files')
-        .upload(filePath, historyFile);
-      if (uploadErr) {
-        setError('File upload failed');
-        setLoading(false);
-        return;
+    try {
+      // Prepare user metadata
+      const userMetadata = {
+        full_name: fullName,
+        dob,
+        phone,
+        address,
+        gender,
+        emergency_contact_name: emergencyName,
+        emergency_contact_phone: emergencyPhone,
+        insurance_provider: insuranceProvider,
+        insurance_policy_number: insurancePolicy,
+        allergies,
+        past_medical_history: pastHistory,
+        role: 'patient'
+      };
+
+      // Sign up the user with email confirmation
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: userMetadata,
+          emailRedirectTo: `${getSiteUrl()}/auth/callback`
+        }
+      });
+
+      if (signUpError) {
+        throw signUpError;
       }
-      file_url = `ehr-files/${filePath}`;
-    }
 
-    const { error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          dob,
-          phone,
-          address,
-          gender,
-          emergency_contact_name: emergencyName,
-          emergency_contact_phone: emergencyPhone,
-          insurance_provider: insuranceProvider,
-          insurance_policy_number: insurancePolicy,
-          allergies,
-          past_medical_history: pastHistory,
-          past_history_file: file_url,
-          role: 'patient'
-        },
-        emailRedirectTo: `${getSiteUrl()}/auth/callback`
+      // If there's a history file, upload it after successful signup
+      if (historyFile) {
+        try {
+          const filePath = `patient-docs/${data.user?.id}/${Date.now()}_${historyFile.name}`;
+          
+          // Upload the file
+          const { error: uploadError } = await supabase.storage
+            .from('ehr-files')
+            .upload(filePath, historyFile);
+
+          if (uploadError) {
+            console.error('File upload error:', uploadError);
+            throw new Error('Failed to upload medical history file');
+          }
+
+          // Get the public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('ehr-files')
+            .getPublicUrl(filePath);
+
+          // Create record in database
+          const { error: recordError } = await supabase
+            .from('records')
+            .insert({
+              patient_id: data.user?.id,
+              doctor_id: data.user?.id, // For self-uploaded files
+              file_name: historyFile.name,
+              file_type: historyFile.type,
+              file_size: historyFile.size,
+              file_path: filePath
+            });
+
+          if (recordError) {
+            console.error('Record creation error:', recordError);
+            throw new Error('Failed to create medical record');
+          }
+        } catch (uploadErr) {
+          console.error('File upload process error:', uploadErr);
+          // Don't throw the error here, just log it
+          // The signup was successful even if file upload failed
+        }
       }
-    });
 
-    setLoading(false);
+      // Check if email confirmation was sent
+      if (data?.user?.identities?.length === 0) {
+        throw new Error('Email already registered. Please try logging in or use a different email.');
+      }
 
-    if (signUpError) {
-      setError(signUpError.message);
-    } else {
-      alert('Check your email for the confirmation link!');
+      if (!data?.user) {
+        throw new Error('Failed to create user account.');
+      }
+
+      alert('Please check your email for the confirmation link. Make sure to check your spam folder as well.');
       router.push('/login');
+    } catch (err) {
+      console.error('Signup error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred during signup.');
+    } finally {
+      setLoading(false);
     }
   };
 
