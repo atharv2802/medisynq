@@ -37,8 +37,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   insurance_provider TEXT,
   insurance_policy_number TEXT,
   allergies TEXT,
-  past_medical_history TEXT,
-  past_history_file TEXT
+  past_medical_history TEXT
 );
 
 -- Create appointments table

@@ -10,15 +10,17 @@ interface Record {
   ai_summary: string | null;
   created_at: string;
   doctor_name: string;
+  download_url?: string;
 }
 
 export default function RecordsTab() {
+  const supabase = createClientComponentClient();
+
   const [records, setRecords] = useState<Record[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const supabase = createClientComponentClient();
 
   useEffect(() => {
     const fetchRecords = async () => {
@@ -37,10 +39,29 @@ export default function RecordsTab() {
 
         if (recordsError) throw recordsError;
 
-        setRecords(data.map(record => ({
-          ...record,
-          doctor_name: record.doctor?.full_name || 'Unknown Doctor'
-        })));
+        // Generate signed URLs for each record
+        const recordsWithUrls = await Promise.all(data.map(async (record) => {
+          try {
+            const { data: { signedUrl } } = await supabase.storage
+              .from('ehr-files')
+              .createSignedUrl(record.file_path, 3600); // URL valid for 1 hour
+
+            return {
+            ...record,
+            doctor_name: record.doctor?.full_name || 'Unknown Doctor',
+            download_url: signedUrl
+          };
+        } catch (urlError) {
+          console.error('Error generating signed URL:', urlError);
+          return {
+            ...record,
+            doctor_name: record.doctor?.full_name || 'Unknown Doctor',
+            download_url: null
+          };
+        }
+      }));
+
+      setRecords(recordsWithUrls);
       } catch (err) {
         console.error('Error fetching records:', err);
         setError('Failed to load medical records');
@@ -184,14 +205,16 @@ export default function RecordsTab() {
                   </p>
                 </div>
                 <div>
-                  <a
-                    href={record.file_path}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 hover:text-indigo-800"
-                  >
-                    Download
-                  </a>
+                  {record.download_url && (
+                    <a
+                      href={record.download_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:text-indigo-800"
+                    >
+                      Download
+                    </a>
+                  )}
                 </div>
               </div>
             </div>

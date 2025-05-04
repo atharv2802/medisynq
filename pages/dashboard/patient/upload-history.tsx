@@ -46,11 +46,21 @@ export default function UploadHistory() {
                 .from('ehr-files')
                 .getPublicUrl(filePath);
 
-              // Update the profile with the file URL
-              await supabase
-                .from('profiles')
-                .update({ past_history_file: publicUrl })
-                .eq('id', session.user.id);
+              // Insert the file into records table
+              const { error: recordError } = await supabase
+                .from('records')
+                .insert({
+                  patient_id: session.user.id,
+                  doctor_id: session.user.id, // For self-uploaded files
+                  file_path: filePath,
+                  file_name: file.name,
+                  file_type: file.type,
+                  file_size: file.size,
+                  summary: 'Past Medical History',
+                  ai_summary: null
+                });
+
+              if (recordError) throw recordError;
 
               // Clear the pending file from localStorage
               localStorage.removeItem('pending_history_file');
