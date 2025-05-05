@@ -69,8 +69,7 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
         .insert({
           patient_id: session.user.id,
           doctor_id: selectedDoctor,
-          appointment_date: appointmentDate,
-          appointment_time: appointmentTime,
+          date: new Date(`${appointmentDate}T${appointmentTime}`).toISOString(),
           reason: reason,
           status: 'pending'
         });

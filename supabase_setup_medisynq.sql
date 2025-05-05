@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   past_medical_history TEXT
 );
 
+-- Drop appointment_date column if it exists
+ALTER TABLE IF EXISTS public.appointments DROP COLUMN IF EXISTS appointment_date;
+
 -- Create appointments table
 CREATE TABLE IF NOT EXISTS public.appointments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

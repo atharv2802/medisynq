@@ -8,7 +8,7 @@ interface Appointment {
   id: string;
   patient_id: string;
   doctor_id: string;
-  appointment_date: string;
+  date: string;
   appointment_time: string;
   status: string;
   reason: string;
@@ -45,7 +45,7 @@ const AppointmentsTab: React.FC = () => {
           doctor:profiles!fk_appointments_doctor(full_name)
         `)
         .eq('patient_id', session.user.id)
-        .order('appointment_date', { ascending: true });
+        .order('date', { ascending: true });
 
       if (appointmentsError) throw appointmentsError;
 
@@ -69,7 +69,7 @@ const AppointmentsTab: React.FC = () => {
   const getStatus = (appt: Appointment) => {
     if (appt.status === 'cancelled') return 'Cancelled';
     const now = new Date();
-    const apptDate = new Date(appt.appointment_date);
+    const apptDate = new Date(appt.date);
     if (apptDate > now) return 'Upcoming';
     return 'Completed';
   };
@@ -104,7 +104,7 @@ const AppointmentsTab: React.FC = () => {
     setLoading(true);
     const { error } = await supabase
       .from('appointments')
-      .update({ appointment_date: newDate })
+      .update({ date: new Date(newDate).toISOString() })
       .eq('id', id);
     
     if (!error) {
@@ -222,7 +222,7 @@ const AppointmentsTab: React.FC = () => {
                       setDetailsModal({open: true, appointment: {...appt, status}});
                   }}>
                     <td className="py-2 text-indigo-600 underline cursor-pointer" onClick={e => { e.stopPropagation(); setDoctorModal({open: true, doctor: { name: appt.doctor_name }}); }}>{appt.doctor_name}</td>
-                    <td className="py-2">{new Date(appt.appointment_date).toLocaleString()}</td>
+                    <td className="py-2">{new Date(appt.date).toLocaleString()}</td>
                     <td className="py-2">
                       <span className={`px-2 py-1 rounded text-xs font-bold ${status === 'Upcoming' ? 'bg-blue-100 text-blue-700' : status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{status}</span>
                     </td>
@@ -232,7 +232,7 @@ const AppointmentsTab: React.FC = () => {
                         <>
                           <button
                             className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-semibold hover:bg-yellow-200"
-                            onClick={e => { e.stopPropagation(); setRescheduleModal({open: true, appointment: appt}); setRescheduleDate(appt.appointment_date); }}
+                            onClick={e => { e.stopPropagation(); setRescheduleModal({open: true, appointment: appt}); setRescheduleDate(appt.date); }}
                           >Reschedule</button>
                           <button
                             className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold hover:bg-red-200"
