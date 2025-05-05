@@ -108,7 +108,7 @@ export default function RecordsTab() {
         .from('records')
         .insert({
           patient_id: session.user.id,
-          doctor_id: session.user.id, // For self-uploaded files
+          // doctor_id: session.user.id, // For self-uploaded files
           file_path: filePath,
           file_name: file.name,
           file_type: file.type,

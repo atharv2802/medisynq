@@ -10,7 +10,7 @@ interface Appointment {
   doctor_id: string;
   date: string;
   appointment_time: string;
-  status: string;
+  status: 'upcoming' | 'completed' | 'cancelled';
   reason: string;
   created_at: string;
   doctor_name: string;
@@ -167,22 +167,24 @@ const AppointmentsTab: React.FC = () => {
   };
 
   // Filtering
-  const filtered = appointments.filter(appt => {
-    const status = getStatus(appt).toLowerCase();
+  const filteredAppointments = appointments.filter(appointment => {
     if (filter === 'all') return true;
-    return status === filter;
+    return appointment.status === filter;
   });
 
   // Pagination
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const totalPages = Math.ceil(filteredAppointments.length / PAGE_SIZE);
+  const paginated = filteredAppointments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // Cancel logic
   const handleCancel = async (id: string) => {
     setLoading(true);
     const { error } = await supabase
       .from('appointments')
-      .update({ status: 'cancelled' })
+      .update({ 
+        status: 'cancelled', 
+        cancelled: true 
+      })
       .eq('id', id);
     
     if (!error) {

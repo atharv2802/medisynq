@@ -40,7 +40,63 @@ export default function Login() {
     if (error) {
       setError(error.message);
     } else {
-      router.push('/dashboard/patient');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      console.log('User:', user);
+      console.log('User Error:', userError);
+      console.log('User Metadata:', user?.user_metadata);
+
+      if (userError) {
+        console.error('Error fetching user:', userError);
+        setError(`Error fetching user: ${userError.message}`);
+        return;
+      }
+
+      // Check if user has a role in their metadata
+      let role = user?.user_metadata?.role;
+      
+      // If no role, try to determine from profiles table
+      if (!role) {
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user?.id)
+            .single();
+
+          if (profileError) throw profileError;
+
+          if (profileData?.role) {
+            // Update user metadata with role from profiles
+            const { error: updateError } = await supabase.auth.updateUser({
+              data: { role: profileData.role }
+            });
+
+            if (updateError) throw updateError;
+
+            role = profileData.role;
+          }
+        } catch (error) {
+          console.error('Error fetching profile:', error);
+        }
+      }
+      
+      console.log('Determined Role:', role);
+
+      console.log('Final Role:', role);
+      console.log('User ID:', user?.id);
+      console.log('Full User Object:', JSON.stringify(user, null, 2));
+
+      if (role === 'doctor') {
+        console.log('Routing to doctor dashboard');
+        window.location.href = '/dashboard/doctor';
+      } else if (role === 'patient') {
+        console.log('Routing to patient dashboard');
+        window.location.href = '/dashboard/patient';
+      } else {
+        console.error('No role found', { user, metadata: user?.user_metadata });
+        setError('Unable to determine user role. Please contact support.');
+      }
     }
   };
 

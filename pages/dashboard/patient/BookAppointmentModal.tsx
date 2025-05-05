@@ -115,6 +115,25 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
       // Convert to ISO string to store in UTC
       const utcDateTimeString = appointmentDateTime.toISOString();
 
+      // Check for existing appointments on the same date and time
+      const { data: existingAppointments, error: checkError } = await supabase
+        .from('appointments')
+        .select('id')
+        .eq('patient_id', session.user.id)
+        .eq('date', utcDateTimeString)
+        .eq('status', 'upcoming');
+
+      if (checkError) {
+        console.error('Error checking existing appointments:', checkError);
+        setError('Failed to verify appointment availability');
+        return;
+      }
+
+      if (existingAppointments && existingAppointments.length > 0) {
+        setError('You already have an upcoming appointment at this time');
+        return;
+      }
+
       const { error } = await supabase
         .from('appointments')
         .insert({
@@ -122,10 +141,127 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
           doctor_id: selectedDoctor,
           date: utcDateTimeString,
           reason: reason,
-          status: 'scheduled'
+          status: 'upcoming',
+          cancelled: false
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Appointment booking error:', error);
+        setError(error.message || 'Failed to book appointment');
+        throw error;
+      }
+
+      // Update records table with the doctor ID from the booked appointment
+      console.log('Updating records for patient:', session.user.id);
+      console.log('Selected doctor:', selectedDoctor);
+
+      // Verify user session
+      if (!session?.user) {
+        console.error('No active session');
+        setError('Authentication failed');
+        return;
+      }
+
+      console.log('Current user session:', {
+        user: session.user.id,
+        email: session.user.email
+      });
+
+      // Fetch existing records to check current state
+      const { data: existingRecords, error: fetchError } = await supabase
+        .from('records')
+        .select('id, doctor_id, patient_id')
+        .eq('patient_id', session.user.id);
+
+      if (fetchError) {
+        console.error('Error fetching records:', {
+          message: fetchError.message,
+          details: fetchError.details,
+          hint: fetchError.hint
+        });
+        setError('Failed to fetch existing records');
+        return;
+      }
+
+      // Detailed logging of existing records and patient information
+      console.log('Patient User ID:', session.user.id);
+      console.log('Selected Doctor ID:', selectedDoctor);
+      console.log('Existing Records Count:', existingRecords.length);
+      console.log('Existing Records Details:', JSON.stringify(existingRecords, null, 2));
+
+      // If no records exist, create a new record
+      if (!existingRecords || existingRecords.length === 0) {
+        const { error: insertError, data: insertedRecord } = await supabase
+          .from('records')
+          .insert({
+            patient_id: session.user.id,
+            doctor_id: selectedDoctor,
+            created_at: new Date().toISOString()
+          })
+          .select();
+
+        if (insertError) {
+          console.error('Error inserting new record:', {
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint
+          });
+          setError(`Failed to create new record: ${insertError.message}`);
+        } else {
+          console.log('Inserted new record:', JSON.stringify(insertedRecord, null, 2));
+        }
+        return;
+      }
+
+      // Define a type for update results to handle skipped updates
+      type UpdateResult = {
+        error?: any;
+        data?: any[] | null;
+        count?: number | null;
+        status?: number;
+        statusText?: string;
+        skipReason?: string;
+      };
+
+      // Prepare batch update for records
+      const updatePromises = existingRecords.map(record => {
+        console.log('Record update details:', {
+          recordId: record.id,
+          currentDoctorId: record.doctor_id,
+          patientId: record.patient_id,
+          selectedDoctor: selectedDoctor
+        });
+
+        return supabase
+          .from('records')
+          .update({ 
+            doctor_id: selectedDoctor,
+            updated_at: new Date().toISOString() 
+          })
+          .eq('id', record.id)
+          .select();
+      });
+
+      // Execute all updates
+      const updateResults = await Promise.all(updatePromises);
+
+      // Check and log results
+      const successfulUpdates = updateResults.filter((result: UpdateResult) => !result.error);
+      const errors = updateResults.filter((result: UpdateResult) => result.error);
+
+      if (errors.length > 0) {
+        console.error('Update errors:', errors);
+        setError(`Failed to update ${errors.length} records`);
+      }
+
+      console.log('Successful updates:', JSON.stringify(successfulUpdates, null, 2));
+
+      if (successfulUpdates.length === 0) {
+        console.warn('No records were updated. Possible reasons:', {
+          'Patient ID Match': 'Verify patient_id exists',
+          'Table Permissions': 'Check Supabase RLS policies'
+        });
+      }
 
       onSuccess();
       onClose();
@@ -214,32 +350,21 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 className="w-full border rounded px-3 py-2"
-                rows={3}
+                placeholder="Enter reason for your appointment"
                 required
               />
             </div>
 
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-gray-700 border rounded hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50"
-              >
-                {submitting ? 'Booking...' : 'Book Appointment'}
-              </button>
-            </div>
+            <button 
+              type="submit" 
+              disabled={submitting}
+              className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+            >
+              {submitting ? 'Booking...' : 'Book Appointment'}
+            </button>
           </form>
         )}
       </div>
     </div>
   );
-} 
+};
