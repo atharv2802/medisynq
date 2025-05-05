@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment} from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { FaUserMd, FaUserInjured, FaCalendarAlt, FaHeartbeat } from 'react-icons/fa';
+import { FaUserMd, FaUserInjured, FaCalendarAlt, FaHeartbeat, FaTimes } from 'react-icons/fa';
 
 interface Appointment {
   id: string;
@@ -28,7 +28,7 @@ interface Patient {
   medical_records_count: number;
 }
 
-const MyPatientsTab: React.FC = () => {
+const MyPatientsTab = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -170,6 +170,11 @@ const MyPatientsTab: React.FC = () => {
     setIsPatientModalOpen(true);
   };
 
+  const closePatientDetails = () => {
+    setSelectedPatient(null);
+    setIsPatientModalOpen(false);
+  };
+
   const closePatientModal = () => {
     setIsPatientModalOpen(false);
     setSelectedPatient(null);
@@ -220,131 +225,254 @@ const MyPatientsTab: React.FC = () => {
       </div>
 
       {/* Patient Details Modal */}
-      <Transition show={isPatientModalOpen} as={React.Fragment}>
-        <Dialog onClose={closePatientModal} className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex min-h-screen items-center justify-center">
-            <div className="fixed inset-0 bg-black opacity-30" />
-            
-            <div className="relative bg-white rounded-lg max-w-2xl w-full p-6 mx-auto">
-              {selectedPatient && (
-                <div>
-                  <Dialog.Title className="text-2xl font-bold mb-4">{selectedPatient.full_name}</Dialog.Title>
-                  
-                  {/* Patient Details Section */}
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div>
-                      <h4 className="font-semibold">Personal Information</h4>
-                      <p>Email: {selectedPatient.email}</p>
-                      <p>Phone: {selectedPatient.phone || 'N/A'}</p>
-                      <p>Date of Birth: {selectedPatient.dob || 'N/A'}</p>
-                      <p>Gender: {selectedPatient.gender || 'N/A'}</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-semibold">Medical Overview</h4>
-                      <p>Total Appointments: {selectedPatient.appointments?.length || 0}</p>
-                      <p>Medical Records: {selectedPatient.records?.length || 0}</p>
-                    </div>
-                  </div>
+      <Transition show={isPatientModalOpen} as={Fragment}>
+  <Dialog onClose={closePatientModal} className="fixed inset-0 z-10 overflow-y-auto">
+    <div className="flex min-h-screen items-center justify-center px-4 text-center">
+      <Transition.Child
+        as="div"
+        enter="ease-out duration-300"
+        enterFrom="opacity-0 scale-95"
+        enterTo="opacity-100 scale-100"
+        leave="ease-in duration-200"
+        leaveFrom="opacity-100 scale-100"
+        leaveTo="opacity-0 scale-95"
+        className="inline-block w-full max-w-2xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg relative"
+      >
+        {selectedPatient && (
+          <>
+            <button 
+              onClick={closePatientDetails}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 focus:outline-none bg-red-100 hover:bg-red-200 p-2 rounded-full transition-colors duration-200 z-10"
+            >
+              <FaTimes className="text-2xl text-red-600" />
+            </button>
 
-                  {/* Appointment History */}
-                  <div className="mb-6">
-                    <h4 className="font-semibold mb-2">Appointment History</h4>
-                    {selectedPatient.appointments?.length ? (
-                      <div className="space-y-2">
-                        {selectedPatient.appointments.map((appt) => (
-                          <div 
-                            key={appt.id} 
-                            className={`p-2 rounded ${appt.status === 'completed' ? 'bg-green-100' : appt.status === 'cancelled' ? 'bg-red-100' : 'bg-yellow-100'}`}
-                          >
-                            <p>{new Date(appt.date).toLocaleString()}</p>
-                            <p>Reason: {appt.reason}</p>
-                            <p>Status: {appt.status}</p>
-                          </div>
-                        ))}
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold text-gray-800 pr-10">{selectedPatient.full_name}</h2>
+              <div className="border-b border-gray-200 my-4"></div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <div className="text-sm break-words">
+                <h4 className="font-semibold mb-1">Personal Information</h4>
+                <p>Email: {selectedPatient.email}</p>
+                <p>Phone: {selectedPatient.phone || 'N/A'}</p>
+                <p>Date of Birth: {selectedPatient.dob || 'N/A'}</p>
+                <p>Gender: {selectedPatient.gender || 'N/A'}</p>
+              </div>
+
+              <div className="text-sm">
+                <h4 className="font-semibold mb-1">Medical Overview</h4>
+                <p>Total Appointments: {selectedPatient.appointments?.length || 0}</p>
+                <p>Medical Records: {selectedPatient.records?.length || 0}</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h4 className="font-semibold mb-2">Appointment History</h4>
+              {selectedPatient.appointments.filter(appt => appt.status !== 'cancelled').length > 0 ? (
+                <div className="space-y-2">
+                  {selectedPatient.appointments
+                    .filter(appt => appt.status !== 'cancelled')
+                    .map((appt) => (
+                      <div 
+                        key={appt.id} 
+                        className={`p-2 rounded text-sm ${appt.status === 'completed' ? 'bg-green-100' : appt.status === 'upcoming' ? 'bg-yellow-100' : 'bg-red-100'}`}
+                      >
+                        <p>{new Date(appt.date).toLocaleString()}</p>
+                        <p>Reason: {appt.reason}</p>
+                        <p>Status: {appt.status}</p>
                       </div>
-                    ) : (
-                      <p>No appointment history</p>
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex space-x-4">
-                    <Link 
-                      href={`/dashboard/doctor/book-appointment?patient_id=${selectedPatient.id}`}
-                      className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
-                    >
-                      Book Appointment
-                    </Link>
-                    <Link 
-                      href={`/dashboard/doctor/medical-records?patient_id=${selectedPatient.id}`}
-                      className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
-                    >
-                      Medical Records
-                    </Link>
-                  </div>
+                    ))}
                 </div>
+              ) : (
+                <p>No appointment history</p>
               )}
             </div>
-          </div>
-        </Dialog>
-      </Transition>
+
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mt-4">
+              <Link 
+                href={`/dashboard/doctor/book-appointment?patient_id=${selectedPatient.id}`}
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition text-center"
+              >
+                Book Appointment
+              </Link>
+              <Link 
+                href={`/dashboard/doctor/medical-records?patient_id=${selectedPatient.id}`}
+                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition text-center"
+              >
+                Medical Records
+              </Link>
+            </div>
+          </>
+        )}
+      </Transition.Child>
     </div>
-  );
+  </Dialog>
+</Transition>
 
-  return (
-    <div className="patients-tab p-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">My Patients</h2>
-
-      {patients.length === 0 ? (
-        <div className="bg-white shadow-md rounded-lg p-8 text-center">
-          <FaUserInjured className="mx-auto text-6xl text-gray-300 mb-4" />
-          <h3 className="text-xl font-semibold text-gray-600 mb-2">No Patients Found</h3>
-          <p className="text-gray-500">
-            You currently have no patients assigned to you. 
-            Patients will appear here once they are added to your care.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {patients.map((patient) => (
-            <div 
-              key={patient.id} 
-              className="bg-white shadow-md rounded-lg p-6 hover:shadow-lg transition-shadow"
+      {/* <Transition show={isPatientModalOpen} as={Fragment}>
+  <Dialog onClose={closePatientModal} className="fixed inset-0 z-10 overflow-y-auto">
+    <div className="flex min-h-screen items-center justify-center px-4 text-center">
+      <Transition.Child
+        as={Fragment}
+        enter="ease-out duration-300"
+        enterFrom="opacity-0 scale-95"
+        enterTo="opacity-100 scale-100"
+        leave="ease-in duration-200"
+        leaveFrom="opacity-100 scale-100"
+        leaveTo="opacity-0 scale-95"
+      >
+        {selectedPatient && (
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-auto max-h-[90vh] overflow-y-auto relative z-50">
+            <button 
+              onClick={closePatientDetails}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 focus:outline-none bg-red-100 hover:bg-red-200 p-2 rounded-full transition-colors duration-200 z-10"
             >
-              <div className="flex items-center mb-4">
-                <FaUserMd className="text-3xl text-blue-500 mr-4" />
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">{patient.full_name}</h3>
-                  <p className="text-sm text-gray-500">{patient.email}</p>
-                </div>
+              <FaTimes className="text-2xl text-red-600" />
+            </button>
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold text-gray-800 pr-10">{selectedPatient.full_name}</h2>
+              <div className="border-b border-gray-200 my-4"></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <h4 className="font-semibold">Personal Information</h4>
+                <p>Email: {selectedPatient.email}</p>
+                <p>Phone: {selectedPatient.phone || 'N/A'}</p>
+                <p>Date of Birth: {selectedPatient.dob || 'N/A'}</p>
+                <p>Gender: {selectedPatient.gender || 'N/A'}</p>
               </div>
-              <div className="space-y-2">
-                {patient.dob && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <FaCalendarAlt className="mr-2 text-gray-400" />
-                    <span>DOB: {patient.dob}</span>
-                  </div>
-                )}
-                {patient.gender && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <FaUserMd className="mr-2 text-gray-400" />
-                    <span>Gender: {patient.gender}</span>
-                  </div>
-                )}
-                {patient.phone && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <FaHeartbeat className="mr-2 text-red-400" />
-                    <span>Phone: {patient.phone}</span>
-                  </div>
-                )}
+              <div>
+                <h4 className="font-semibold">Medical Overview</h4>
+                <p>Total Appointments: {selectedPatient.appointments?.length || 0}</p>
+                <p>Medical Records: {selectedPatient.records?.length || 0}</p>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+            <div className="mb-6">
+              <h4 className="font-semibold mb-2">Appointment History</h4>
+              {selectedPatient.appointments.filter(appt => appt.status !== 'cancelled').length > 0 ? (
+                <div className="space-y-2">
+                  {selectedPatient.appointments
+                    .filter(appt => appt.status !== 'cancelled')
+                    .map((appt) => (
+                      <div 
+                        key={appt.id} 
+                        className={`p-2 rounded ${appt.status === 'completed' ? 'bg-green-100' : appt.status === 'upcoming' ? 'bg-yellow-100' : 'bg-red-100'}`}
+                      >
+                        <p>{new Date(appt.date).toLocaleString()}</p>
+                        <p>Reason: {appt.reason}</p>
+                        <p>Status: {appt.status}</p>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p>No appointment history</p>
+              )}
+            </div>
+            <div className="flex space-x-4">
+              <Link 
+                href={`/dashboard/doctor/book-appointment?patient_id=${selectedPatient.id}`}
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+              >
+                Book Appointment
+              </Link>
+              <Link 
+                href={`/dashboard/doctor/medical-records?patient_id=${selectedPatient.id}`}
+                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
+              >
+                Medical Records
+              </Link>
+            </div>
+          </div>
+        )}
+      </Transition.Child>
+    </div>
+  </Dialog>
+</Transition> */}
+      {/* <Transition show={isPatientModalOpen} as={Fragment}>
+  <Dialog onClose={closePatientModal} className="fixed inset-0 z-10 overflow-y-auto">
+    <div className="flex min-h-screen items-center justify-center px-4 text-center">
+      <Transition.Child
+        as="div" // 👈 use a real element instead of Fragment
+        enter="ease-out duration-300"
+        enterFrom="opacity-0 scale-95"
+        enterTo="opacity-100 scale-100"
+        leave="ease-in duration-200"
+        leaveFrom="opacity-100 scale-100"
+        leaveTo="opacity-0 scale-95"
+        className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg relative"
+      >
+        {selectedPatient && (
+          <>
+            <button 
+              onClick={closePatientDetails}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 focus:outline-none bg-red-100 hover:bg-red-200 p-2 rounded-full transition-colors duration-200 z-10"
+            >
+              <FaTimes className="text-2xl text-red-600" />
+            </button>
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold text-gray-800 pr-10">{selectedPatient.full_name}</h2>
+              <div className="border-b border-gray-200 my-4"></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <h4 className="font-semibold">Personal Information</h4>
+                <p>Email: {selectedPatient.email}</p>
+                <p>Phone: {selectedPatient.phone || 'N/A'}</p>
+                <p>Date of Birth: {selectedPatient.dob || 'N/A'}</p>
+                <p>Gender: {selectedPatient.gender || 'N/A'}</p>
+              </div>
+              <div>
+                <h4 className="font-semibold">Medical Overview</h4>
+                <p>Total Appointments: {selectedPatient.appointments?.length || 0}</p>
+                <p>Medical Records: {selectedPatient.records?.length || 0}</p>
+              </div>
+            </div>
+            <div className="mb-6">
+              <h4 className="font-semibold mb-2">Appointment History</h4>
+              {selectedPatient.appointments.filter(appt => appt.status !== 'cancelled').length > 0 ? (
+                <div className="space-y-2">
+                  {selectedPatient.appointments
+                    .filter(appt => appt.status !== 'cancelled')
+                    .map((appt) => (
+                      <div 
+                        key={appt.id} 
+                        className={`p-2 rounded ${appt.status === 'completed' ? 'bg-green-100' : appt.status === 'upcoming' ? 'bg-yellow-100' : 'bg-red-100'}`}
+                      >
+                        <p>{new Date(appt.date).toLocaleString()}</p>
+                        <p>Reason: {appt.reason}</p>
+                        <p>Status: {appt.status}</p>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p>No appointment history</p>
+              )}
+            </div>
+            <div className="flex space-x-4">
+              <Link 
+                href={`/dashboard/doctor/book-appointment?patient_id=${selectedPatient.id}`}
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+              >
+                Book Appointment
+              </Link>
+              <Link 
+                href={`/dashboard/doctor/medical-records?patient_id=${selectedPatient.id}`}
+                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition"
+              >
+                Medical Records
+              </Link>
+            </div>
+          </>
+        )}
+      </Transition.Child>
+    </div>
+  </Dialog>
+</Transition> */}
+
     </div>
   );
-};
+}
 
 export default MyPatientsTab;
