@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS public.appointments (
     patient_id UUID NOT NULL,
     date TIMESTAMP WITH TIME ZONE NOT NULL,
     reason TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
     comments TEXT,
     cancelled BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

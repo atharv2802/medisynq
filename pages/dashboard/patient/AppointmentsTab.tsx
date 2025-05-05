@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import BookAppointmentModal from './BookAppointmentModal';
 import DoctorDetailsModal from './DoctorDetailsModal';
 import AppointmentDetailsModal from './AppointmentDetailsModal';
@@ -27,32 +27,124 @@ const AppointmentsTab: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('all');
   const [doctorModal, setDoctorModal] = useState<{open: boolean, doctor: any}>({open: false, doctor: null});
   const [detailsModal, setDetailsModal] = useState<{open: boolean, appointment: any}>({open: false, appointment: null});
-  const [rescheduleModal, setRescheduleModal] = useState<{open: boolean, appointment: any}>({open: false, appointment: null});
+  const [rescheduleModal, setRescheduleModal] = useState<{open: boolean, appointment: Appointment}>({open: false, appointment: {} as Appointment});
+  const supabase = createClientComponentClient();
+
+  // Generate date constraints for weekday appointments
+  const getAppointmentDateConstraints = () => {
+    const today = new Date();
+    const minDate = new Date(today);
+    const maxDate = new Date(today);
+
+    // Set minimum date to today or next Monday if today is weekend
+    while (minDate.getDay() === 0 || minDate.getDay() === 6) {
+      minDate.setDate(minDate.getDate() + 1);
+    }
+
+    // Set maximum date to 3 months from now, ending on a Friday
+    maxDate.setMonth(maxDate.getMonth() + 3);
+    while (maxDate.getDay() !== 5) {
+      maxDate.setDate(maxDate.getDate() - 1);
+    }
+
+    // Format dates consistently
+    const formatDate = (date: Date) => 
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+    return {
+      min: formatDate(minDate),
+      max: formatDate(maxDate)
+    };
+  };
+
+  const { min: rescheduleMinDate, max: rescheduleMaxDate } = getAppointmentDateConstraints();
   const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState<string | null>(null);
-  const supabase = createClientComponentClient();
+
+  const generateTimeSlots = () => {
+    const slots: string[] = [];
+    for (let hour = 9; hour < 14; hour++) {
+      slots.push(`${hour.toString().padStart(2, '0')}:00`);
+      slots.push(`${hour.toString().padStart(2, '0')}:30`);
+    }
+    slots.push('14:00');
+    return slots;
+  };
+
+  const timeSlots = useMemo(() => generateTimeSlots(), []);
+
+  const [bookedAppointments, setBookedAppointments] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchBookedAppointments = async () => {
+      if (!rescheduleModal.appointment.doctor_id || !rescheduleDate) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('date')
+          .eq('doctor_id', rescheduleModal.appointment.doctor_id)
+          .gte('date', `${rescheduleDate}T00:00:00`)
+          .lt('date', `${rescheduleDate}T23:59:59`);
+
+        if (error) throw error;
+
+        // Extract booked time slots
+        const bookedSlots = data.map(appt => {
+          // Parse the date in local time
+          const localDate = new Date(appt.date);
+          const time = localDate.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: true,
+            timeZone: 'UTC' // Ensure consistent timezone
+          });
+          return time;
+        });
+
+        setBookedAppointments(bookedSlots);
+      } catch (err) {
+        console.error('Error fetching booked appointments:', err);
+      }
+    };
+
+    fetchBookedAppointments();
+  }, [rescheduleModal.appointment.doctor_id, rescheduleDate, supabase]);
+
+  const availableTimeSlots = useMemo(() => {
+    return timeSlots.filter(slot => !bookedAppointments.includes(slot));
+  }, [timeSlots, bookedAppointments]);
 
   const fetchAppointments = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
+      // Fetch appointments with doctor details
       const { data, error: appointmentsError } = await supabase
         .from('appointments')
         .select(`
           *,
-          doctor:profiles!fk_appointments_doctor(full_name)
+          doctor:profiles!fk_appointments_doctor(full_name, email)
         `)
         .eq('patient_id', session.user.id)
         .order('date', { ascending: true });
 
-      if (appointmentsError) throw appointmentsError;
+      if (appointmentsError) {
+        console.error('Appointments query error:', appointmentsError);
+        setError('Failed to fetch appointments');
+        return;
+      }
 
-      setAppointments(data.map(appointment => ({
+      // Transform appointments to include doctor name
+      const appointmentsWithDoctorInfo = data.map((appointment: any) => ({
         ...appointment,
         doctor_name: appointment.doctor?.full_name || 'Unknown Doctor'
-      })));
+      }));
+
+      setAppointments(appointmentsWithDoctorInfo);
     } catch (err) {
       console.error('Error fetching appointments:', err);
       setError('Failed to load appointments');
@@ -100,17 +192,34 @@ const AppointmentsTab: React.FC = () => {
   };
 
   // Reschedule logic
-  const handleReschedule = async (id: string, newDate: string) => {
-    setLoading(true);
-    const { error } = await supabase
-      .from('appointments')
-      .update({ date: new Date(newDate).toISOString() })
-      .eq('id', id);
-    
-    if (!error) {
+  const handleReschedule = async (id: string, newDate: string, newTime: string) => {
+    setRescheduleLoading(true);
+    try {
+      // Create a date object in local time
+      const appointmentDateTime = new Date(`${newDate}T${newTime}`);
+      
+      // Convert to ISO string to store in UTC
+      const utcDateTimeString = appointmentDateTime.toISOString();
+
+      const { error } = await supabase
+        .from('appointments')
+        .update({ date: utcDateTimeString })
+        .eq('id', id);
+      
+      if (error) throw error;
+
       await fetchAppointments();
+      
+      // Reset reschedule modal and show success
+      setRescheduleModal({open: false, appointment: {} as Appointment});
+      setRescheduleDate('');
+      setRescheduleTime('');
+    } catch (err) {
+      console.error('Reschedule error:', err);
+      // Optionally set an error state to show to user
+    } finally {
+      setRescheduleLoading(false);
     }
-    setLoading(false);
   };
 
   if (loading) {
@@ -152,18 +261,35 @@ const AppointmentsTab: React.FC = () => {
       {rescheduleModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md relative">
-            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setRescheduleModal({open: false, appointment: null})}>&times;</button>
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setRescheduleModal({open: false, appointment: {} as Appointment})}>&times;</button>
             <h2 className="text-2xl font-bold mb-4">Reschedule Appointment</h2>
             <input
-              type="datetime-local"
-              className="w-full border px-3 py-2 rounded mb-4"
-              value={rescheduleDate}
-              onChange={e => setRescheduleDate(e.target.value)}
-            />
+                type="date"
+                value={rescheduleDate}
+                onChange={(e) => {
+                  const selectedDate = e.target.value;
+                  setRescheduleDate(selectedDate);
+                  setRescheduleTime(''); // Reset time when date changes
+                }}
+                className="w-full border rounded px-3 py-2"
+                required
+                min={rescheduleMinDate}
+                max={rescheduleMaxDate}
+              />
+            <select
+              value={rescheduleTime}
+              onChange={(e) => setRescheduleTime(e.target.value)}
+              className="w-full border rounded px-3 py-2 mt-2"
+            >
+              <option value="">Select a time slot</option>
+              {availableTimeSlots.map(slot => (
+                <option key={slot} value={slot}>{slot}</option>
+              ))}
+            </select>
             <button
               className="w-full py-2 bg-indigo-500 text-white font-bold rounded hover:bg-indigo-600 transition"
-              onClick={() => handleReschedule(rescheduleModal.appointment.id, rescheduleDate)}
-              disabled={rescheduleLoading}
+              onClick={() => handleReschedule(rescheduleModal.appointment.id, rescheduleDate, rescheduleTime)}
+              disabled={rescheduleLoading || !rescheduleTime}
             >
               {rescheduleLoading ? 'Rescheduling...' : 'Confirm Reschedule'}
             </button>
@@ -232,7 +358,12 @@ const AppointmentsTab: React.FC = () => {
                         <>
                           <button
                             className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-semibold hover:bg-yellow-200"
-                            onClick={e => { e.stopPropagation(); setRescheduleModal({open: true, appointment: appt}); setRescheduleDate(appt.date); }}
+                            onClick={e => { 
+                              e.stopPropagation(); 
+                              setRescheduleModal({open: true, appointment: appt}); 
+                              setRescheduleDate(''); 
+                              setRescheduleTime(''); 
+                            }}
                           >Reschedule</button>
                           <button
                             className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-semibold hover:bg-red-200"

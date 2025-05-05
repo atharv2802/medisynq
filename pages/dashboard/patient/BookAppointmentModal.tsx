@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 interface Doctor {
@@ -13,24 +13,38 @@ interface BookAppointmentModalProps {
   onSuccess: () => void;
 }
 
+// Generate time slots for 9 AM to 2 PM in 30-minute intervals
+const generateTimeSlots = () => {
+  const slots: string[] = [];
+  for (let hour = 9; hour < 14; hour++) {
+    slots.push(`${hour.toString().padStart(2, '0')}:00`);
+    slots.push(`${hour.toString().padStart(2, '0')}:30`);
+  }
+  slots.push('14:00');
+  return slots;
+};
+
 export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: BookAppointmentModalProps) {
+  const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedTime, setSelectedTime] = useState<string>('');
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDoctor, setSelectedDoctor] = useState<string>('');
-  const [appointmentDate, setAppointmentDate] = useState('');
-  const [appointmentTime, setAppointmentTime] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [bookedAppointments, setBookedAppointments] = useState<string[]>([]);
   const supabase = createClientComponentClient();
 
+  // Generate time slots
+  const timeSlots = useMemo(() => generateTimeSlots(), []);
+
+  // Fetch doctors
   useEffect(() => {
     const fetchDoctors = async () => {
       try {
         const { data, error: doctorsError } = await supabase
-          .from('profiles')
-          .select('id, full_name, email')
-          .eq('role', 'doctor');
+          .rpc('get_doctors');
 
         if (doctorsError) throw doctorsError;
 
@@ -48,39 +62,76 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
     }
   }, [isOpen, supabase]);
 
+  // Fetch booked appointments when doctor and date are selected
+  useEffect(() => {
+    const fetchBookedAppointments = async () => {
+      if (!selectedDoctor || !selectedDate) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('date')
+          .eq('doctor_id', selectedDoctor)
+          .gte('date', `${selectedDate}T00:00:00Z`)
+          .lt('date', `${selectedDate}T23:59:59Z`);
+
+        if (error) throw error;
+
+        // Extract booked time slots
+        const bookedSlots = data.map(appt => {
+          const time = new Date(appt.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+          return time;
+        });
+
+        setBookedAppointments(bookedSlots);
+      } catch (err) {
+        console.error('Error fetching booked appointments:', err);
+      }
+    };
+
+    fetchBookedAppointments();
+  }, [selectedDoctor, selectedDate, supabase]);
+
+  // Filter available time slots
+  const availableTimeSlots = useMemo(() => {
+    return timeSlots.filter(slot => !bookedAppointments.includes(slot));
+  }, [timeSlots, bookedAppointments]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDoctor || !appointmentDate || !appointmentTime || !reason) {
-      setError('Please fill in all fields');
-      return;
-    }
+    setSubmitting(true);
+    setError(null);
 
     try {
-      setSubmitting(true);
-      setError(null);
-
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) {
-        throw new Error('Not authenticated');
+        setError('Please log in to book an appointment');
+        return;
       }
 
-      const { error: appointmentError } = await supabase
+      // Create a date object in local time
+      const appointmentDateTime = new Date(`${selectedDate}T${selectedTime}`);
+      
+      // Convert to ISO string to store in UTC
+      const utcDateTimeString = appointmentDateTime.toISOString();
+
+      const { error } = await supabase
         .from('appointments')
         .insert({
           patient_id: session.user.id,
           doctor_id: selectedDoctor,
-          date: new Date(`${appointmentDate}T${appointmentTime}`).toISOString(),
+          date: utcDateTimeString,
           reason: reason,
-          status: 'pending'
+          status: 'scheduled'
         });
 
-      if (appointmentError) throw appointmentError;
+      if (error) throw error;
 
       onSuccess();
       onClose();
     } catch (err) {
-      console.error('Error creating appointment:', err);
-      setError('Failed to book appointment');
+      console.error('Booking error:', err);
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setSubmitting(false);
     }
@@ -124,11 +175,13 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
               </label>
               <input
                 type="date"
-                value={appointmentDate}
-                onChange={(e) => setAppointmentDate(e.target.value)}
+                value={selectedDate}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setSelectedTime(''); // Reset time when date changes
+                }}
                 className="w-full border rounded px-3 py-2"
                 required
-                min={new Date().toISOString().split('T')[0]}
               />
             </div>
 
@@ -136,13 +189,21 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Appointment Time
               </label>
-              <input
-                type="time"
-                value={appointmentTime}
-                onChange={(e) => setAppointmentTime(e.target.value)}
+              <select
+                value={selectedTime}
+                onChange={(e) => setSelectedTime(e.target.value)}
                 className="w-full border rounded px-3 py-2"
                 required
-              />
+                disabled={!selectedDoctor || !selectedDate}
+              >
+                <option value="">Select a time slot</option>
+                {availableTimeSlots.map(slot => (
+                  <option key={slot} value={slot}>{slot}</option>
+                ))}
+              </select>
+              {selectedDoctor && selectedDate && availableTimeSlots.length === 0 && (
+                <p className="text-red-500 text-sm mt-1">No available time slots for this date</p>
+              )}
             </div>
 
             <div>
