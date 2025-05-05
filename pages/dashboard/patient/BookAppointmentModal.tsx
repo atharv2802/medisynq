@@ -115,12 +115,11 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
       // Convert to ISO string to store in UTC
       const utcDateTimeString = appointmentDateTime.toISOString();
 
-      // Check for existing appointments on the same date and time
-      const { data: existingAppointments, error: checkError } = await supabase
+      // Check for any existing upcoming appointments for the patient
+      const { data: existingUpcomingAppointments, error: checkError } = await supabase
         .from('appointments')
-        .select('id')
+        .select('id, date')
         .eq('patient_id', session.user.id)
-        .eq('date', utcDateTimeString)
         .eq('status', 'upcoming');
 
       if (checkError) {
@@ -129,8 +128,11 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
         return;
       }
 
-      if (existingAppointments && existingAppointments.length > 0) {
-        setError('You already have an upcoming appointment at this time');
+      if (existingUpcomingAppointments && existingUpcomingAppointments.length > 0) {
+        // Create a modal-like error message
+        setError(`You already have an upcoming appointment on ${new Date(existingUpcomingAppointments[0].date).toLocaleDateString()}. 
+        
+Please cancel or reschedule your existing appointment before booking a new one.`);
         return;
       }
 
@@ -278,12 +280,34 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-        <h2 className="text-xl font-bold mb-4">Book Appointment</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Book Appointment</h2>
+          <button 
+            onClick={onClose} 
+            className="text-gray-600 hover:text-gray-900 font-bold text-xl"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
         
         {loading ? (
           <p>Loading doctors...</p>
         ) : error ? (
-          <p className="text-red-500">{error}</p>
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <div className="flex justify-between items-center">
+              <div>
+                <strong className="font-bold">Appointment Booking Error</strong>
+                <span className="block sm:inline ml-2">{error}</span>
+              </div>
+              <button 
+                onClick={() => setError(null)} 
+                className="text-red-700 hover:text-red-900 font-bold ml-4"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
