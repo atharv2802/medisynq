@@ -135,6 +135,23 @@ CREATE POLICY "Patient can update own profile"
   FOR UPDATE
   USING (auth.uid() = id);
 
+CREATE POLICY "Doctors can view their patients' profiles"
+  ON public.profiles
+  FOR SELECT
+  USING (
+    -- Check if the current user is a doctor
+    EXISTS (
+      SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'doctor'
+    )
+    AND
+    -- Check if the patient has an appointment with this doctor
+    EXISTS (
+      SELECT 1 FROM appointments a 
+      WHERE a.patient_id = public.profiles.id 
+      AND a.doctor_id = auth.uid()
+    )
+  );
+
 -- Records
 CREATE POLICY "Patient reads own records"
   ON public.records
@@ -144,7 +161,19 @@ CREATE POLICY "Patient reads own records"
 CREATE POLICY "Doctor reads own patients' records"
   ON public.records
   FOR SELECT
-  USING (auth.uid() = doctor_id);
+  USING (
+    -- Check if the current user is a doctor
+    EXISTS (
+      SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'doctor'
+    )
+    AND
+    -- Check if the patient has an appointment with this doctor
+    EXISTS (
+      SELECT 1 FROM appointments a 
+      WHERE a.patient_id = public.records.patient_id
+      AND a.doctor_id = auth.uid()
+    )
+  );
 
 -- Add policy for authenticated users to insert records
 CREATE POLICY "Allow record creation"
