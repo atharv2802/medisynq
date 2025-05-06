@@ -33,7 +33,7 @@ export default function Signup() {
   const router = useRouter();
 
   function validateEmail(email: string) {
-    return /.+@.+\..+/.test(email) && email.includes('.com');
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
   function validatePassword(password: string) {
@@ -76,19 +76,22 @@ export default function Signup() {
     try {
       // Prepare user metadata
       const userMetadata = {
-        full_name: fullName,
-        dob,
-        phone,
-        address,
-        gender,
-        emergency_contact_name: emergencyName,
-        emergency_contact_phone: emergencyPhone,
-        insurance_provider: insuranceProvider,
-        insurance_policy_number: insurancePolicy,
-        allergies,
-        past_medical_history: pastHistory,
+        full_name: fullName || '',
+        dob: dob !== '' ? dob : null,
+        phone: phone || '',
+        address: address || '',
+        gender: gender || '',
+        emergency_contact_name: emergencyName || '',
+        emergency_contact_phone: emergencyPhone || '',
+        insurance_provider: insuranceProvider || '',
+        insurance_policy_number: insurancePolicy || '',
+        allergies: allergies || '',
+        past_medical_history: pastHistory || '',
+        past_history_file: '', // optional file name for history, or keep as empty
         role: 'patient'
       };
+      
+      console.log('User metadata being sent:', userMetadata);
 
       // Sign up the user with email confirmation
       const { data, error: signUpError } = await supabase.auth.signUp({
