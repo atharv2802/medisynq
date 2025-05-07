@@ -24,7 +24,7 @@ const AppointmentsTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [filter, setFilter] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('all');
+  const [filter, setFilter] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('upcoming');
   const [doctorModal, setDoctorModal] = useState<{open: boolean, doctor: any}>({open: false, doctor: null});
   const [detailsModal, setDetailsModal] = useState<{open: boolean, appointment: any}>({open: false, appointment: null});
   const [rescheduleModal, setRescheduleModal] = useState<{open: boolean, appointment: Appointment}>({open: false, appointment: {} as Appointment});

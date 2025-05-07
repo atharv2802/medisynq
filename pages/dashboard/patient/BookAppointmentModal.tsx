@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/router';
 
 interface Doctor {
   id: string;
@@ -12,6 +13,7 @@ interface BookAppointmentModalProps {
   onClose: () => void;
   onSuccess: () => void;
 }
+
 
 // Generate time slots for 9 AM to 2 PM in 30-minute intervals
 const generateTimeSlots = () => {
@@ -35,6 +37,9 @@ export default function BookAppointmentModal({ isOpen, onClose, onSuccess }: Boo
   const [submitting, setSubmitting] = useState(false);
   const [bookedAppointments, setBookedAppointments] = useState<string[]>([]);
   const supabase = createClientComponentClient();
+
+  const router = useRouter();
+const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Generate time slots
   const timeSlots = useMemo(() => generateTimeSlots(), []);
@@ -273,6 +278,13 @@ Please cancel or reschedule your existing appointment before booking a new one.`
     } finally {
       setSubmitting(false);
     }
+
+    onSuccess();
+    setSuccessMessage('Appointment booked successfully!');
+    setTimeout(() => {
+      router.push('/dashboard/patient/');
+    }, 2000);
+
   };
 
   if (!isOpen) return null;
@@ -282,6 +294,12 @@ Please cancel or reschedule your existing appointment before booking a new one.`
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Book Appointment</h2>
+          {successMessage && (
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+              <strong className="font-bold">Success!</strong>
+              <span className="block sm:inline ml-2">{successMessage}</span>
+            </div>
+          )}
           <button 
             onClick={onClose} 
             className="text-gray-600 hover:text-gray-900 font-bold text-xl"

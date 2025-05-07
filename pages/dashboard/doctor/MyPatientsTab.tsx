@@ -3,6 +3,7 @@ import { Dialog, Transition } from '@headlessui/react';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { FaUserMd, FaUserInjured, FaCalendarAlt, FaHeartbeat, FaTimes } from 'react-icons/fa';
+import router from 'next/router';
 
 interface Appointment {
   id: string;
@@ -175,6 +176,11 @@ const MyPatientsTab = () => {
     setIsPatientModalOpen(false);
   };
 
+  const handleMedicalRecordsClick = (patient: Patient) => {
+    localStorage.setItem('selectedPatient', JSON.stringify(patient));
+    router.push(`/dashboard/doctor/medical-records?patient_id=${patient.id}`);
+  };
+
   const closePatientModal = () => {
     setIsPatientModalOpen(false);
     setSelectedPatient(null);
@@ -297,12 +303,12 @@ const MyPatientsTab = () => {
               >
                 Book Appointment
               </Link>
-              <Link 
-                href={`/dashboard/doctor/medical-records?patient_id=${selectedPatient.id}`}
+              <button
+                onClick={() => handleMedicalRecordsClick(selectedPatient)}
                 className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition text-center"
               >
                 Medical Records
-              </Link>
+              </button>
             </div>
           </>
         )}
